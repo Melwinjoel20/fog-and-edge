@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="refresh" content="30">
+<title>ColoGuard – SLA Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+body{
+font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+background:linear-gradient(135deg,#06111f,#0b1f36,#102944);
+color:#e6f1ff;
+min-height:100vh;
+}
+
+/* HEADER */
+header{
+background:rgba(8,25,44,.88);
+backdrop-filter:blur(8px);
+padding:18px 26px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+border-bottom:1px solid #163a5c;
+box-shadow:0 8px 20px rgba(0,0,0,.25);
+}
+
+header h1{
+font-size:1.3rem;
+font-weight:700;
+color:#ffffff;
+letter-spacing:.02em;
+}
+
+header .sub{
+font-size:.78rem;
+color:#8fb6d9;
+margin-top:4px;
+}
+
+.refresh-badge{
+font-size:.72rem;
+background:#0ea5e9;
+color:#e0f2fe;
+padding:6px 12px;
+border-radius:9999px;
+font-weight:600;
+box-shadow:0 0 0 1px rgba(255,255,255,.06) inset;
+}
+
+main{
+padding:26px;
+max-width:1450px;
+margin:0 auto;
+}
+
+/* SUMMARY */
+.sla-summary{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:16px;
+margin-bottom:24px;
+}
+
+.sla-card{
+background:rgba(15,39,64,.92);
+border:1px solid #1f4c73;
+border-radius:14px;
+padding:22px;
+box-shadow:0 10px 20px rgba(0,0,0,.18);
+}
+
+.sla-card .label{
+font-size:.72rem;
+text-transform:uppercase;
+letter-spacing:.08em;
+color:#8fb6d9;
+margin-bottom:8px;
+}
+
+.sla-card .value{
+font-size:2rem;
+font-weight:800;
+}
+
+.green{color:#22c55e}
+.yellow{color:#facc15}
+.red{color:#ef4444}
+
+/* TITLES */
+.section-title{
+font-size:.82rem;
+font-weight:700;
+text-transform:uppercase;
+letter-spacing:.08em;
+color:#8fb6d9;
+margin-bottom:14px;
+}
+
+/* SENSOR GRID */
+.sensor-grid{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+gap:16px;
+margin-bottom:32px;
+}
+
+.sensor-card{
+background:rgba(15,39,64,.92);
+border:1px solid #1f4c73;
+border-radius:14px;
+padding:20px;
+box-shadow:0 10px 20px rgba(0,0,0,.16);
+transition:.25s ease;
+}
+
+.sensor-card:hover{
+transform:translateY(-3px);
+border-color:#38bdf8;
+}
+
+.sensor-header{
+display:flex;
+justify-content:space-between;
+align-items:flex-start;
+margin-bottom:4px;
+}
+
+.sensor-id{
+font-weight:700;
+font-size:1rem;
+color:#fff;
+}
+
+.sensor-name{
+font-size:.72rem;
+color:#8fb6d9;
+margin-bottom:14px;
+}
+
+/* BADGES */
+.badge{
+font-size:.68rem;
+font-weight:700;
+padding:4px 10px;
+border-radius:9999px;
+text-transform:uppercase;
+letter-spacing:.05em;
+}
+
+.badge.OK{
+background:#14532d;
+color:#86efac;
+}
+
+.badge.WARNING{
+background:#78350f;
+color:#fde68a;
+}
+
+.badge.CRITICAL{
+background:#7f1d1d;
+color:#fecaca;
+}
+
+/* METRICS */
+.metrics{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+}
+
+.metric{
+background:#081a2a;
+border:1px solid #163a5c;
+border-radius:10px;
+padding:12px;
+}
+
+.metric .m-label{
+font-size:.68rem;
+color:#8fb6d9;
+margin-bottom:4px;
+}
+
+.metric .m-value{
+font-size:1.08rem;
+font-weight:700;
+color:#fff;
+}
+
+.metric .warn{color:#facc15}
+.metric .crit{color:#ef4444}
+
+/* SLA BAR */
+.sla-row{
+margin-top:15px;
+display:flex;
+align-items:center;
+gap:10px;
+}
+
+.sla-track{
+flex:1;
+height:7px;
+background:#163a5c;
+border-radius:9999px;
+overflow:hidden;
+}
+
+.sla-fill{
+height:100%;
+border-radius:9999px;
+}
+
+.sla-label{
+font-size:.72rem;
+color:#8fb6d9;
+min-width:70px;
+text-align:right;
+}
+
+/* CHARTS */
+.charts-grid{
+display:grid;
+grid-template-columns:repeat(auto-fill,minmax(380px,1fr));
+gap:16px;
+margin-bottom:32px;
+}
+
+.chart-card{
+background:rgba(15,39,64,.92);
+border:1px solid #1f4c73;
+border-radius:14px;
+padding:20px;
+box-shadow:0 10px 20px rgba(0,0,0,.16);
+}
+
+.chart-card h3{
+font-size:.8rem;
+color:#8fb6d9;
+margin-bottom:12px;
+text-transform:uppercase;
+letter-spacing:.06em;
+}
+
+.chart-card canvas{
+max-height:160px;
+}
+
+/* ALERTS */
+.alert-list{
+display:flex;
+flex-direction:column;
+gap:8px;
+margin-bottom:32px;
+}
+
+.alert-row{
+display:flex;
+align-items:center;
+gap:12px;
+background:rgba(15,39,64,.92);
+border-radius:10px;
+padding:12px 16px;
+border-left:4px solid;
+border:1px solid #1f4c73;
+}
+
+.alert-row.CRITICAL{border-left-color:#ef4444}
+.alert-row.WARNING{border-left-color:#f59e0b}
+
+.alert-row .a-sensor{
+font-weight:700;
+min-width:160px;
+color:#fff;
+}
+
+.alert-row .a-metric{
+color:#9ec5e5;
+flex:1;
+}
+
+.alert-row .a-val{
+font-weight:700;
+min-width:80px;
+text-align:right;
+}
+
+.alert-row .a-time{
+font-size:.72rem;
+color:#6fa3c9;
+min-width:90px;
+text-align:right;
+}
+
+.empty{
+color:#6fa3c9;
+font-style:italic;
+padding:16px 0;
+}
+
+@media(max-width:900px){
+.sla-summary{grid-template-columns:1fr 1fr}
+}
+
+@media(max-width:700px){
+.sla-summary{grid-template-columns:1fr}
+header{flex-direction:column;gap:10px;align-items:flex-start}
+}
+</style>
+</head>
+<body>
+
+<header>
+<div>
+<h1>🛡️ ColoGuard – Fog-Based SLA Monitoring</h1>
+<div class="sub">Colocation Data Centre · Last updated: {{ now }}</div>
+</div>
+<span class="refresh-badge">⟳ auto-refresh 30s</span>
+</header>
+
+<main>
+
+{% set score_class = 'green' if sla.score >= 75 else ('yellow' if sla.score >= 50 else 'red') %}
+
+<div class="sla-summary">
+<div class="sla-card">
+<div class="label">Overall SLA Health</div>
+<div class="value {{ score_class }}">{{ sla.score }}</div>
+</div>
+
+<div class="sla-card">
+<div class="label">SLA Met</div>
+<div class="value {{ score_class }}">{{ sla.healthy }} / {{ sla.total }}</div>
+</div>
+
+<div class="sla-card">
+<div class="label">Compliance %</div>
+<div class="value {{ score_class }}">{{ sla.pct }}%</div>
+</div>
+
+<div class="sla-card">
+<div class="label">Active Alerts</div>
+<div class="value {{ 'red' if alerts|length > 0 else 'green' }}">{{ alerts|length }}</div>
+</div>
+</div>
+
+<div class="section-title">Live Sensor Readings</div>
+<div class="sensor-grid">
+
+{% if latest %}
+{% for s in latest %}
+{% set h = s.sla_health | float %}
+{% set bar_color = '#22c55e' if h >= 75 else ('#facc15' if h >= 50 else '#ef4444') %}
+{% set m = s.metrics | default({}) %}
+
+{% set label_map = {
+  'temperature_c': 'Temperature (°C)',
+  'humidity_pct':  'Humidity (%)',
+  'voltage_v':     'Voltage (V)',
+  'load_pct':      'Load (%)',
+  'latency_ms':    'Latency (ms)',
+  'packet_loss_pct': 'Packet Loss (%)',
+  'airflow_cfm':   'Airflow (CFM)',
+  'delta_t_c':     'Delta-T (°C)'
+} %}
+
+<div class="sensor-card">
+
+  <div class="sensor-header">
+    <span class="sensor-id">{{ s.sensor_id }}</span>
+    <span class="badge {{ s.status }}">{{ s.status }}</span>
+  </div>
+
+  <div class="sensor-name">{{ s.sensor_name | default('Sensor') }} · {{ s.location | default('Dublin') }}</div>
+
+  <div class="metrics">
+    {% for key, val in m.items() %}
+    <div class="metric">
+      <div class="m-label">{{ label_map.get(key, key) }}</div>
+      <div class="m-value">{{ val }}</div>
+    </div>
+    {% endfor %}
+
+    <div class="metric">
+      <div class="m-label">Last Updated</div>
+      <div class="m-value" style="font-size:.78rem;color:#8fb6d9">
+        {{ s.last_updated[11:16] if s.last_updated else 'N/A' }} UTC
+      </div>
+    </div>
+  </div>
+
+  <div class="sla-row">
+    <div class="sla-track">
+      <div class="sla-fill" style="width:{{ h }}%;background:{{ bar_color }}"></div>
+    </div>
+    <span class="sla-label">SLA {{ h }}% {% if s.sla_met %}✓{% endif %}</span>
+  </div>
+
+</div>
+{% endfor %}
+{% else %}
+<p class="empty">No sensor data available.</p>
+{% endif %}
+
+</div>
+
+<div class="section-title">Sensor History</div>
+<div class="charts-grid" id="charts"></div>
+
+<div class="section-title">Active Alerts</div>
+<div class="alert-list">
+
+{% if alerts %}
+{% for a in alerts %}
+<div class="alert-row {{ a.level }}">
+<span class="badge {{ a.level }}">{{ a.level }}</span>
+<span class="a-sensor">{{ a.sensor_id }}</span>
+<span class="a-metric">{{ a.metric }}</span>
+<span class="a-val">{{ a.value }}</span>
+<span class="a-time">{{ a.timestamp }}</span>
+</div>
+{% endfor %}
+{% else %}
+<p class="empty">✅ No active alerts</p>
+{% endif %}
+
+</div>
+
+</main>
+
+<script>
+const chartData={{ chart_data | safe }};
+const container=document.getElementById("charts");
+
+Object.entries(chartData).forEach(([name,data])=>{
+const card=document.createElement("div");
+card.className="chart-card";
+
+const title=document.createElement("h3");
+title.textContent=name;
+
+const canvas=document.createElement("canvas");
+
+card.appendChild(title);
+card.appendChild(canvas);
+container.appendChild(card);
+
+new Chart(canvas,{
+type:"line",
+data:{
+labels:data.labels||[],
+datasets:[{
+label:name,
+data:data.values||[],
+borderColor:"#38bdf8",
+backgroundColor:"rgba(56,189,248,.15)",
+borderWidth:2,
+pointRadius:3,
+tension:.35,
+fill:true
+}]
+},
+options:{
+responsive:true,
+plugins:{
+legend:{labels:{color:"#8fb6d9"}}
+},
+scales:{
+x:{ticks:{color:"#6fa3c9"},grid:{color:"#163a5c"}},
+y:{ticks:{color:"#6fa3c9"},grid:{color:"#163a5c"}}
+}
+}
+});
+});
+</script>
+
+</body>
+</html>
