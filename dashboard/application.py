@@ -1,8 +1,7 @@
 """
 dashboard/application.py
-Flask dashboard for the Fog/Edge project.
+Flask dashboard for the Fog/Edge project — 7-sensor edition.
 Elastic Beanstalk requires the Flask app object to be called 'application'.
-Reads from DynamoDB and serves a live auto-refreshing UI.
 """
 
 import json
@@ -19,39 +18,47 @@ application = Flask(__name__)
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# ── AWS config (set via Elastic Beanstalk environment variables) ──────────────
-REGION         = os.environ.get("AWS_REGION",       "us-east-1")
-READINGS_TABLE = os.environ.get("READINGS_TABLE",   "fog_sensor_readings")
-LATEST_TABLE   = os.environ.get("LATEST_TABLE",     "fog_sensor_latest")
+# ── AWS config ────────────────────────────────────────────────────────────────
+REGION         = os.environ.get("AWS_REGION",     "us-east-1")
+READINGS_TABLE = os.environ.get("READINGS_TABLE", "fog_sensor_readings")
+LATEST_TABLE   = os.environ.get("LATEST_TABLE",   "fog_sensor_latest")
 
-dynamodb       = boto3.resource("dynamodb", region_name=REGION)
-readings_tbl   = dynamodb.Table(READINGS_TABLE)
-latest_tbl     = dynamodb.Table(LATEST_TABLE)
+dynamodb     = boto3.resource("dynamodb", region_name=REGION)
+readings_tbl = dynamodb.Table(READINGS_TABLE)
+latest_tbl   = dynamodb.Table(LATEST_TABLE)
 
-# Must match sensor_id values used by the simulator and processor
+# ── 7 sensor IDs (must match simulator.py) ───────────────────────────────────
 SENSOR_IDS = [
     "temp-sensor-001",
-    "humidity-sensor-002",
-    "power-sensor-003",
-    "network-sensor-004",
-    "airflow-sensor-005",
+    "temp-sensor-002",
+    "humidity-sensor-001",
+    "power-sensor-001",
+    "network-sensor-001",
+    "network-sensor-002",
+    "airflow-sensor-001",
 ]
 
-# Maps each sensor to the primary metric key inside its nested 'metrics' dict.
-# Used by build_charts() to extract the right value per sensor.
+# Primary chart metric per sensor type prefix
 SENSOR_CHART_METRIC = {
-    "temp-sensor-001":     "temperature_c",
-    "humidity-sensor-002": "humidity_pct",
-    "power-sensor-003":    "load_pct",
-    "network-sensor-004":  "latency_ms",
-    "airflow-sensor-005":  "airflow_cfm",
+    "temp":     "temperature_c",
+    "humidity": "humidity_pct",
+    "power":    "load_pct",
+    "network":  "latency_ms",
+    "airflow":  "airflow_cfm",
+}
+
+CATEGORY_LABELS = {
+    "temperature": "Temperature",
+    "humidity":    "Humidity",
+    "power":       "Power / UPS",
+    "network":     "Network",
+    "airflow":     "Airflow",
 }
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def from_decimal(obj):
-    """Recursively convert DynamoDB Decimals to plain floats."""
     if isinstance(obj, Decimal):
         return float(obj)
     if isinstance(obj, dict):
@@ -62,7 +69,6 @@ def from_decimal(obj):
 
 
 def get_latest():
-    """Scan fog_sensor_latest for one current row per sensor."""
     try:
         items = latest_tbl.scan().get("Items", [])
         return sorted(from_decimal(items), key=lambda x: x.get("sensor_id", ""))
@@ -72,11 +78,6 @@ def get_latest():
 
 
 def get_history(sensor_id: str, limit: int = 20):
-    """
-    Query fog_sensor_readings for the most recent `limit` readings
-    for a given sensor. The lambda_processor writes with pk=sensor_id,
-    sk=timestamp, so we query on pk.
-    """
     try:
         resp = readings_tbl.query(
             KeyConditionExpression=Key("pk").eq(sensor_id),
@@ -84,25 +85,25 @@ def get_history(sensor_id: str, limit: int = 20):
             Limit=limit,
         )
         rows = from_decimal(resp.get("Items", []))
-        rows.reverse()   # oldest-first for charts
+        rows.reverse()
         return rows
     except Exception as e:
         log.error("get_history error for %s: %s", sensor_id, e)
         return []
 
 
+def _chart_metric_for_sensor(sensor_id: str) -> str:
+    for prefix, metric in SENSOR_CHART_METRIC.items():
+        if sensor_id.startswith(prefix):
+            return metric
+    return "value"
+
+
 def build_charts():
-    """
-    Build chart data for all 5 sensors.
-    Each sensor's primary metric is pulled from the nested 'metrics' dict
-    that the simulator/processor stores (e.g. metrics.temperature_c).
-    The JS dashboard expects chartData[sensor_id][metric_key] and
-    chartData[sensor_id].labels.
-    """
     charts = {}
     for sid in SENSOR_IDS:
-        rows = get_history(sid, 60)
-        metric_key = SENSOR_CHART_METRIC[sid]
+        rows       = get_history(sid, 60)
+        metric_key = _chart_metric_for_sensor(sid)
         charts[sid] = {
             "labels": [r.get("timestamp", "")[11:16] for r in rows],
             "values": [r.get("metrics", {}).get(metric_key, 0) for r in rows],
@@ -111,27 +112,23 @@ def build_charts():
 
 
 def collect_alerts(latest):
-    """
-    Flatten per-sensor alert lists into a single sorted list.
-    Alerts are embedded in each latest row by the processor
-    (copied verbatim from the simulator payload).
-    CRITICAL alerts sort to the top.
-    """
     alerts = []
     for item in latest:
         for a in item.get("alerts", []):
             alerts.append({
-                "sensor_id": item.get("sensor_id"),
-                "metric":    a.get("metric"),
-                "level":     a.get("level"),
-                "value":     a.get("value"),
-                "timestamp": item.get("last_updated", ""),
+                "sensor_id":   item.get("sensor_id"),
+                "sensor_name": item.get("sensor_name", ""),
+                "rack":        item.get("rack", "?"),
+                "aisle":       item.get("aisle", "?"),
+                "metric":      a.get("metric"),
+                "level":       a.get("level"),
+                "value":       a.get("value"),
+                "timestamp":   item.get("last_updated", ""),
             })
     return sorted(alerts, key=lambda x: 0 if x["level"] == "CRITICAL" else 1)
 
 
 def overall_sla(latest):
-    """Aggregate SLA health across all sensors for the summary bar."""
     if not latest:
         return {"score": 0, "healthy": 0, "total": 0, "pct": 0}
     scores  = [item.get("sla_health", 0) for item in latest]
@@ -144,6 +141,37 @@ def overall_sla(latest):
     }
 
 
+def group_by_category(latest):
+    groups = {}
+    for item in latest:
+        stype = item.get("sensor_type", "unknown")
+        if stype not in groups:
+            groups[stype] = {
+                "label":        CATEGORY_LABELS.get(stype, stype.title()),
+                "sensor_type":  stype,
+                "sensors":      [],
+                "healthy":      0,
+                "total":        0,
+                "worst_status": "OK",
+                "alerts":       [],
+            }
+        g = groups[stype]
+        g["sensors"].append(item)
+        g["total"]  += 1
+        if item.get("sla_met", False):
+            g["healthy"] += 1
+        status = item.get("status", "OK")
+        if status == "CRITICAL" or (status == "WARNING" and g["worst_status"] != "CRITICAL"):
+            g["worst_status"] = status
+        for a in item.get("alerts", []):
+            g["alerts"].append({**a,
+                                 "sensor_id":   item.get("sensor_id"),
+                                 "sensor_name": item.get("sensor_name", ""),
+                                 "rack":        item.get("rack", "?"),
+                                 "aisle":       item.get("aisle", "?")})
+    return groups
+
+
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @application.route("/")
@@ -154,6 +182,7 @@ def index():
         latest=latest,
         alerts=collect_alerts(latest),
         sla=overall_sla(latest),
+        categories=group_by_category(latest),
         chart_data=json.dumps(build_charts()),
         now=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
     )
@@ -166,7 +195,42 @@ def api_latest():
         "sensors":    latest,
         "alerts":     collect_alerts(latest),
         "sla":        overall_sla(latest),
+        "categories": group_by_category(latest),
         "fetched_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+
+@application.route("/api/category/<sensor_type>")
+def api_category(sensor_type):
+    latest  = get_latest()
+    sensors = [s for s in latest if s.get("sensor_type") == sensor_type]
+    if not sensors:
+        return jsonify({"error": "Unknown category"}), 404
+
+    racks  = sorted(set(s.get("rack",  "?") for s in sensors))
+    aisles = sorted(set(s.get("aisle", "?") for s in sensors))
+    grid   = {}
+    for s in sensors:
+        key = (s.get("rack", "?"), s.get("aisle", "?"))
+        grid[str(key)] = {
+            "sensor_id":    s.get("sensor_id"),
+            "sensor_name":  s.get("sensor_name"),
+            "rack":         s.get("rack"),
+            "aisle":        s.get("aisle"),
+            "status":       s.get("status"),
+            "sla_health":   s.get("sla_health"),
+            "metrics":      s.get("metrics", {}),
+            "alerts":       s.get("alerts", []),
+            "last_updated": s.get("last_updated"),
+        }
+
+    return jsonify({
+        "sensor_type": sensor_type,
+        "label":       CATEGORY_LABELS.get(sensor_type, sensor_type.title()),
+        "racks":       racks,
+        "aisles":      aisles,
+        "grid":        grid,
+        "sensors":     sensors,
     })
 
 

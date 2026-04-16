@@ -4,480 +4,1094 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="refresh" content="30">
-<title>ColoGuard – SLA Dashboard</title>
+<title>ColoGuard – NOC Command Center</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 
+:root{
+  --bg:#071018;
+  --bg2:#0b1824;
+  --panel:#0f2234;
+  --panel2:#13293f;
+  --line:#214564;
+  --cyan:#38bdf8;
+  --green:#22c55e;
+  --amber:#facc15;
+  --red:#ef4444;
+  --text:#e8f3ff;
+  --muted:#8eb3d1;
+}
+
 body{
-font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-background:linear-gradient(135deg,#06111f,#0b1f36,#102944);
-color:#e6f1ff;
-min-height:100vh;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:
+    radial-gradient(circle at top right,#10304d 0%,transparent 30%),
+    radial-gradient(circle at bottom left,#0c2940 0%,transparent 25%),
+    linear-gradient(135deg,var(--bg),#08131d,var(--bg2));
+  color:var(--text);
+  min-height:100vh;
 }
 
-/* HEADER */
+/* ── HEADER ── */
 header{
-background:rgba(8,25,44,.88);
-backdrop-filter:blur(8px);
-padding:18px 26px;
-display:flex;
-justify-content:space-between;
-align-items:center;
-border-bottom:1px solid #163a5c;
-box-shadow:0 8px 20px rgba(0,0,0,.25);
+  padding:18px 28px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  border-bottom:1px solid var(--line);
+  background:rgba(6,15,25,.88);
+  backdrop-filter:blur(10px);
+  position:sticky;
+  top:0;
+  z-index:50;
+}
+.brand{display:flex;gap:14px;align-items:center}
+.brand-icon{
+  width:44px;height:44px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#123452,#0d2234);
+  border:1px solid var(--line);font-size:20px;
+}
+.brand h1{font-size:1.35rem;font-weight:800;letter-spacing:.02em}
+.brand p{font-size:.78rem;color:var(--muted);margin-top:3px}
+.top-actions{display:flex;gap:10px;align-items:center}
+.badge-top{
+  padding:8px 14px;border-radius:999px;
+  font-size:.75rem;font-weight:700;
+  border:1px solid var(--line);background:#0f2335;color:#d9f2ff;
+}
+.live-dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:var(--green);margin-right:6px;box-shadow:0 0 10px var(--green);
 }
 
-header h1{
-font-size:1.3rem;
-font-weight:700;
-color:#ffffff;
-letter-spacing:.02em;
+/* ── TAB BAR ── */
+.tab-bar{
+  display:flex;
+  gap:0;
+  border-bottom:1px solid var(--line);
+  background:rgba(6,15,25,.7);
+  padding:0 28px;
+  position:sticky;
+  top:81px;
+  z-index:40;
+  backdrop-filter:blur(10px);
 }
-
-header .sub{
-font-size:.78rem;
-color:#8fb6d9;
-margin-top:4px;
+.tab-btn{
+  padding:14px 22px;
+  font-size:.78rem;font-weight:700;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--muted);cursor:pointer;
+  border-bottom:2px solid transparent;
+  transition:.2s ease;
+  display:flex;align-items:center;gap:8px;
+  user-select:none;
+  background:none;border-top:none;border-left:none;border-right:none;
+  font-family:inherit;
 }
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--cyan);border-bottom-color:var(--cyan)}
 
-.refresh-badge{
-font-size:.72rem;
-background:#0ea5e9;
-color:#e0f2fe;
-padding:6px 12px;
-border-radius:9999px;
-font-weight:600;
-box-shadow:0 0 0 1px rgba(255,255,255,.06) inset;
+.tab-count{
+  padding:2px 8px;border-radius:999px;
+  font-size:.65rem;font-weight:800;
+  background:#0a1e30;color:var(--muted);
+  transition:.2s;
 }
+.tab-btn.active .tab-count{background:#0a2e45;color:var(--cyan)}
+.tab-count.has-alerts{background:#3a0808 !important;color:#ffb4b4 !important}
 
-main{
-padding:26px;
-max-width:1450px;
-margin:0 auto;
+/* ── TAB PANELS ── */
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+
+main{padding:26px;max-width:1700px;margin:auto}
+
+/* ── LAYOUT ── */
+.command-grid{
+  display:grid;
+  grid-template-columns:300px 1fr;
+  gap:18px;
+  margin-bottom:18px;
 }
+@media(max-width:1100px){.command-grid{grid-template-columns:1fr}}
 
-/* SUMMARY */
-.sla-summary{
-display:grid;
-grid-template-columns:repeat(4,1fr);
-gap:16px;
-margin-bottom:24px;
+/* ── SIDEBAR ── */
+.sidebar{
+  background:linear-gradient(180deg,var(--panel),#0e1f2f);
+  border:1px solid var(--line);border-radius:18px;
+  padding:18px;box-shadow:0 12px 28px rgba(0,0,0,.22);
 }
-
-.sla-card{
-background:rgba(15,39,64,.92);
-border:1px solid #1f4c73;
-border-radius:14px;
-padding:22px;
-box-shadow:0 10px 20px rgba(0,0,0,.18);
+.side-title{
+  font-size:.78rem;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:12px;font-weight:700;
 }
-
-.sla-card .label{
-font-size:.72rem;
-text-transform:uppercase;
-letter-spacing:.08em;
-color:#8fb6d9;
-margin-bottom:8px;
+.zone-list{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+.zone{
+  padding:12px;border-radius:12px;
+  background:#0b1b2b;border:1px solid #173450;
+  display:flex;justify-content:space-between;align-items:center;
+  transition:.25s ease;
 }
+.zone:hover{transform:translateX(4px);border-color:var(--cyan)}
+.zone span{font-size:.82rem;font-weight:700}
+.dot{width:10px;height:10px;border-radius:50%}
+.dot.green{background:var(--green);box-shadow:0 0 8px var(--green)}
+.dot.amber{background:var(--amber);box-shadow:0 0 8px var(--amber)}
+.dot.red{background:var(--red);box-shadow:0 0 8px var(--red)}
 
-.sla-card .value{
-font-size:2rem;
-font-weight:800;
+.mini-panel{
+  padding:14px;border-radius:14px;
+  background:#0b1b2b;border:1px solid #173450;margin-bottom:12px;
 }
+.mini-panel .label{
+  font-size:.7rem;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;
+}
+.mini-panel .value{font-size:1.6rem;font-weight:800}
 
-.green{color:#22c55e}
-.yellow{color:#facc15}
-.red{color:#ef4444}
+/* ── CONTENT ── */
+.content{display:flex;flex-direction:column;gap:18px}
 
-/* TITLES */
+/* ── KPI ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:1000px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.kpi-grid{grid-template-columns:1fr}}
+
+.kpi{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:18px;padding:20px;
+  transition:.25s ease;
+}
+.kpi:hover{
+  transform:translateY(-4px);border-color:var(--cyan);
+  box-shadow:0 14px 28px rgba(56,189,248,.08);
+}
+.kpi .label{
+  font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);margin-bottom:10px;font-weight:700;
+}
+.kpi .value{font-size:2rem;font-weight:900}
+
+/* ── SECTION TITLE ── */
 .section-title{
-font-size:.82rem;
-font-weight:700;
-text-transform:uppercase;
-letter-spacing:.08em;
-color:#8fb6d9;
-margin-bottom:14px;
+  font-size:.8rem;font-weight:800;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:12px;
 }
 
-/* SENSOR GRID */
+/* ── CATEGORY CARDS ── */
+.category-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:16px;
+}
+
+.cat-card{
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:18px;padding:20px;
+  cursor:pointer;
+  transition:.25s ease;
+  position:relative;
+  overflow:hidden;
+}
+.cat-card::after{
+  content:'🔍 Click to drill down';
+  position:absolute;bottom:10px;right:14px;
+  font-size:.65rem;color:var(--cyan);opacity:0;
+  transition:.2s;
+}
+.cat-card:hover{
+  transform:translateY(-5px);border-color:var(--cyan);
+  box-shadow:0 18px 32px rgba(56,189,248,.12);
+}
+.cat-card:hover::after{opacity:1}
+.cat-card.CRITICAL{border-color:var(--red)!important;box-shadow:0 0 0 1px var(--red) inset}
+.cat-card.WARNING {border-color:var(--amber)!important}
+
+.cat-icon{font-size:1.8rem;margin-bottom:10px}
+.cat-name{font-size:.9rem;font-weight:800;letter-spacing:.03em;margin-bottom:8px}
+.cat-stats{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.cat-stat{font-size:.78rem;color:var(--muted)}
+.cat-stat strong{color:var(--text)}
+
+.cat-bar-track{height:6px;background:#173450;border-radius:999px;overflow:hidden}
+.cat-bar-fill{height:100%;border-radius:999px}
+
+.cat-status-badge{
+  display:inline-block;margin-top:10px;
+  padding:4px 10px;border-radius:999px;font-size:.68rem;font-weight:800;
+}
+.cat-status-badge.OK      {background:#13452a;color:#98f5ba}
+.cat-status-badge.WARNING {background:#5b3a08;color:#ffe38a}
+.cat-status-badge.CRITICAL{background:#5a1010;color:#ffb4b4}
+
+/* ── SENSOR GRID ── */
 .sensor-grid{
-display:grid;
-grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
-gap:16px;
-margin-bottom:32px;
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(400px,1fr));
+  gap:18px;
 }
-
 .sensor-card{
-background:rgba(15,39,64,.92);
-border:1px solid #1f4c73;
-border-radius:14px;
-padding:20px;
-box-shadow:0 10px 20px rgba(0,0,0,.16);
-transition:.25s ease;
+  background:linear-gradient(180deg,#10263a,#0f2234);
+  border:1px solid var(--line);border-radius:18px;padding:18px;
+  transition:.25s ease;position:relative;overflow:hidden;
 }
-
 .sensor-card:hover{
-transform:translateY(-3px);
-border-color:#38bdf8;
+  transform:translateY(-5px);border-color:var(--cyan);
+  box-shadow:0 18px 32px rgba(0,0,0,.25);
 }
+.sensor-card.hidden-card{display:none}
+.sensor-header{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}
+.sensor-id{font-size:1rem;font-weight:800}
+.sensor-name{font-size:.78rem;color:var(--muted);margin-bottom:14px}
 
-.sensor-header{
-display:flex;
-justify-content:space-between;
-align-items:flex-start;
-margin-bottom:4px;
-}
+.badge{padding:5px 12px;border-radius:999px;font-size:.72rem;font-weight:800}
+.badge.OK      {background:#13452a;color:#98f5ba}
+.badge.WARNING {background:#5b3a08;color:#ffe38a}
+.badge.CRITICAL{background:#5a1010;color:#ffb4b4}
 
-.sensor-id{
-font-weight:700;
-font-size:1rem;
-color:#fff;
-}
-
-.sensor-name{
-font-size:.72rem;
-color:#8fb6d9;
-margin-bottom:14px;
-}
-
-/* BADGES */
-.badge{
-font-size:.68rem;
-font-weight:700;
-padding:4px 10px;
-border-radius:9999px;
-text-transform:uppercase;
-letter-spacing:.05em;
-}
-
-.badge.OK{
-background:#14532d;
-color:#86efac;
-}
-
-.badge.WARNING{
-background:#78350f;
-color:#fde68a;
-}
-
-.badge.CRITICAL{
-background:#7f1d1d;
-color:#fecaca;
-}
-
-/* METRICS */
-.metrics{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:10px;
-}
-
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .metric{
-background:#081a2a;
-border:1px solid #163a5c;
-border-radius:10px;
-padding:12px;
+  background:#081827;border:1px solid #173450;
+  border-radius:14px;padding:12px;transition:.2s ease;
 }
+.metric:hover{border-color:var(--cyan)}
+.metric .m-label{font-size:.68rem;color:var(--muted);margin-bottom:6px}
+.metric .m-value{font-size:1.05rem;font-weight:800;margin-bottom:6px}
+.good{color:var(--green)} .warn{color:var(--amber)} .crit{color:var(--red)}
+.metric-target{font-size:.68rem;color:#79a8cc;margin-bottom:6px}
+.metric-track{height:6px;background:#173450;border-radius:999px;overflow:hidden}
+.metric-fill{height:100%;border-radius:999px}
 
-.metric .m-label{
-font-size:.68rem;
-color:#8fb6d9;
-margin-bottom:4px;
-}
-
-.metric .m-value{
-font-size:1.08rem;
-font-weight:700;
-color:#fff;
-}
-
-.metric .warn{color:#facc15}
-.metric .crit{color:#ef4444}
-
-/* SLA BAR */
-.sla-row{
-margin-top:15px;
-display:flex;
-align-items:center;
-gap:10px;
-}
-
+.sla-row{display:flex;gap:10px;align-items:center;margin-top:16px}
 .sla-track{
-flex:1;
-height:7px;
-background:#163a5c;
-border-radius:9999px;
-overflow:hidden;
+  flex:1;height:8px;background:#173450;border-radius:999px;
+  overflow:hidden;position:relative;
+}
+.sla-track::after{
+  content:'';position:absolute;left:75%;top:-2px;
+  width:2px;height:12px;background:#fff;opacity:.7;
+}
+.sla-fill{height:100%;border-radius:999px}
+.sla-label{font-size:.76rem;color:var(--muted);min-width:86px;text-align:right}
+
+/* ── SENSOR TAB TOOLBAR ── */
+.sensor-toolbar{
+  display:flex;gap:10px;align-items:center;
+  margin-bottom:18px;flex-wrap:wrap;
+}
+.sensor-search{
+  flex:1;min-width:220px;
+  padding:10px 16px;border-radius:12px;
+  background:#0b1b2b;border:1px solid var(--line);
+  color:var(--text);font-size:.8rem;font-family:inherit;
+  outline:none;transition:.2s;
+}
+.sensor-search::placeholder{color:var(--muted)}
+.sensor-search:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,189,248,.1)}
+
+.filter-pill{
+  padding:9px 16px;border-radius:999px;
+  background:#0b1b2b;border:1px solid var(--line);
+  color:var(--muted);font-size:.75rem;font-weight:700;
+  cursor:pointer;transition:.2s;white-space:nowrap;
+  font-family:inherit;
+}
+.filter-pill:hover{border-color:var(--cyan);color:var(--text)}
+.filter-pill.fp-active{border-color:var(--cyan);color:var(--cyan);background:#0a1e30}
+.filter-pill.fp-critical{border-color:var(--red);color:var(--red);background:#1a0808}
+.filter-pill.fp-warning {border-color:var(--amber);color:var(--amber);background:#1a1000}
+
+.sensor-count-label{
+  font-size:.75rem;color:var(--muted);margin-left:auto;white-space:nowrap;
 }
 
-.sla-fill{
-height:100%;
-border-radius:9999px;
-}
-
-.sla-label{
-font-size:.72rem;
-color:#8fb6d9;
-min-width:70px;
-text-align:right;
-}
-
-/* CHARTS */
-.charts-grid{
-display:grid;
-grid-template-columns:repeat(auto-fill,minmax(380px,1fr));
-gap:16px;
-margin-bottom:32px;
-}
-
+/* ── CHARTS ── */
+.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:18px}
 .chart-card{
-background:rgba(15,39,64,.92);
-border:1px solid #1f4c73;
-border-radius:14px;
-padding:20px;
-box-shadow:0 10px 20px rgba(0,0,0,.16);
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);border-radius:18px;padding:18px;
 }
-
 .chart-card h3{
-font-size:.8rem;
-color:#8fb6d9;
-margin-bottom:12px;
-text-transform:uppercase;
-letter-spacing:.06em;
+  font-size:.78rem;color:var(--muted);margin-bottom:12px;
+  text-transform:uppercase;letter-spacing:.06em;
 }
+.chart-card canvas{max-height:190px}
 
-.chart-card canvas{
-max-height:160px;
-}
-
-/* ALERTS */
-.alert-list{
-display:flex;
-flex-direction:column;
-gap:8px;
-margin-bottom:32px;
-}
-
+/* ── ALERTS ── */
+.alert-list{display:flex;flex-direction:column;gap:10px}
 .alert-row{
-display:flex;
-align-items:center;
-gap:12px;
-background:rgba(15,39,64,.92);
-border-radius:10px;
-padding:12px 16px;
-border-left:4px solid;
-border:1px solid #1f4c73;
+  display:grid;
+  grid-template-columns:110px 160px 70px 1fr 1fr 120px;
+  gap:10px;align-items:center;
+  padding:14px 16px;border-radius:14px;
+  background:linear-gradient(180deg,var(--panel2),var(--panel));
+  border:1px solid var(--line);
 }
-
-.alert-row.CRITICAL{border-left-color:#ef4444}
-.alert-row.WARNING{border-left-color:#f59e0b}
-
-.alert-row .a-sensor{
-font-weight:700;
-min-width:160px;
-color:#fff;
+.alert-row.WARNING {border-left:4px solid var(--amber)}
+.alert-row.CRITICAL{border-left:4px solid var(--red)}
+.alert-rack{
+  font-size:.75rem;color:var(--cyan);font-weight:700;
+  background:#0a1e30;padding:3px 8px;border-radius:6px;text-align:center;
 }
-
-.alert-row .a-metric{
-color:#9ec5e5;
-flex:1;
-}
-
-.alert-row .a-val{
-font-weight:700;
-min-width:80px;
-text-align:right;
-}
-
-.alert-row .a-time{
-font-size:.72rem;
-color:#6fa3c9;
-min-width:90px;
-text-align:right;
-}
-
 .empty{
-color:#6fa3c9;
-font-style:italic;
-padding:16px 0;
+  padding:18px;border-radius:14px;background:#0e2030;
+  border:1px solid var(--line);color:var(--muted);font-style:italic;
+}
+
+/* ── MODAL ── */
+.modal-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(5,13,22,.85);
+  backdrop-filter:blur(6px);
+  z-index:200;
+  align-items:center;justify-content:center;
+  padding:20px;
+}
+.modal-overlay.open{display:flex}
+
+.modal{
+  background:linear-gradient(160deg,#0f2234,#091929);
+  border:1px solid var(--line);border-radius:22px;
+  width:100%;max-width:900px;
+  max-height:90vh;overflow-y:auto;
+  box-shadow:0 32px 80px rgba(0,0,0,.6);
+  animation:modal-in .25s ease;
+}
+@keyframes modal-in{
+  from{opacity:0;transform:translateY(20px) scale(.97)}
+  to  {opacity:1;transform:translateY(0)    scale(1)}
+}
+
+.modal-header{
+  padding:22px 24px 16px;
+  border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:flex-start;
+  position:sticky;top:0;
+  background:linear-gradient(160deg,#0f2234,#091929);
+  z-index:10;border-radius:22px 22px 0 0;
+}
+.modal-title{font-size:1.2rem;font-weight:800}
+.modal-sub{font-size:.78rem;color:var(--muted);margin-top:4px}
+.modal-close{
+  background:#0b1e2e;border:1px solid var(--line);
+  color:var(--muted);border-radius:8px;
+  padding:6px 12px;font-size:1rem;cursor:pointer;
+  transition:.2s;font-family:inherit;
+}
+.modal-close:hover{color:var(--text);border-color:var(--cyan)}
+
+.modal-body{padding:22px 24px}
+
+/* ── Rack heatmap ── */
+.heatmap-section{margin-bottom:26px}
+.heatmap-title{
+  font-size:.75rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--muted);margin-bottom:14px;
+}
+.heatmap-wrap{overflow-x:auto}
+.heatmap-table{border-collapse:separate;border-spacing:8px;min-width:400px}
+.heatmap-table th{
+  font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--muted);font-weight:700;padding:4px 8px;text-align:center;
+}
+.hm-cell{
+  width:110px;min-height:76px;
+  border-radius:12px;border:2px solid #1a3a55;
+  padding:10px;vertical-align:top;
+  transition:.2s ease;cursor:default;
+  position:relative;
+}
+.hm-cell:hover{transform:scale(1.04);z-index:5;box-shadow:0 8px 20px rgba(0,0,0,.4)}
+.hm-cell.OK      {background:#0d2e1a;border-color:#1a5c30}
+.hm-cell.WARNING {background:#2a1d04;border-color:#7a5010;cursor:pointer}
+.hm-cell.CRITICAL{background:#2a0808;border-color:#8a1010;cursor:pointer}
+.hm-cell.empty-cell{background:#0a1828;border-color:#132840;opacity:.4}
+
+.hm-sensor-id{font-size:.62rem;color:var(--muted);margin-bottom:4px;word-break:break-all}
+.hm-status{
+  font-size:.65rem;font-weight:800;
+  padding:2px 6px;border-radius:4px;margin-bottom:6px;display:inline-block;
+}
+.hm-status.OK      {background:#13452a;color:#98f5ba}
+.hm-status.WARNING {background:#5b3a08;color:#ffe38a}
+.hm-status.CRITICAL{background:#5a1010;color:#ffb4b4}
+
+.hm-health{font-size:.72rem;font-weight:800}
+.hm-pulse{
+  position:absolute;top:8px;right:8px;
+  width:8px;height:8px;border-radius:50%;
+}
+.hm-pulse.OK      {background:var(--green);box-shadow:0 0 6px var(--green)}
+.hm-pulse.WARNING {background:var(--amber);box-shadow:0 0 6px var(--amber)}
+.hm-pulse.CRITICAL{background:var(--red);  box-shadow:0 0 8px var(--red);
+                    animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+/* ── Modal sensor detail ── */
+.modal-sensor-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:14px;
+}
+.modal-sensor-row{
+  background:#081827;border:1px solid #173450;
+  border-radius:14px;padding:14px;
+}
+.modal-sensor-row.WARNING {border-left:3px solid var(--amber)}
+.modal-sensor-row.CRITICAL{border-left:3px solid var(--red)}
+.msr-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.msr-id{font-size:.8rem;font-weight:800}
+.msr-loc{font-size:.7rem;color:var(--cyan);margin-bottom:8px}
+.msr-metrics{display:flex;flex-wrap:wrap;gap:6px}
+.msr-metric{
+  background:#0f2030;padding:4px 8px;border-radius:6px;
+  font-size:.68rem;color:var(--muted);
+}
+.msr-metric strong{color:var(--text)}
+.msr-alerts{margin-top:8px}
+.msr-alert{
+  font-size:.68rem;padding:3px 8px;border-radius:6px;
+  margin-top:4px;
+}
+.msr-alert.WARNING {background:#3a2400;color:#ffe38a}
+.msr-alert.CRITICAL{background:#3a0808;color:#ffb4b4}
+
+/* ── Modal summary bar ── */
+.modal-summary{
+  display:flex;gap:14px;flex-wrap:wrap;
+  padding:14px;background:#081827;
+  border-radius:12px;margin-bottom:20px;
+  border:1px solid var(--line);
+}
+.modal-kpi{text-align:center;flex:1;min-width:80px}
+.modal-kpi .mk-label{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.modal-kpi .mk-value{font-size:1.4rem;font-weight:900}
+
+/* ── Legend ── */
+.heatmap-legend{
+  display:flex;gap:16px;margin-bottom:14px;
+  font-size:.7rem;color:var(--muted);
+}
+.legend-dot{
+  display:inline-block;width:10px;height:10px;
+  border-radius:3px;margin-right:5px;vertical-align:middle;
 }
 
 @media(max-width:900px){
-.sla-summary{grid-template-columns:1fr 1fr}
-}
-
-@media(max-width:700px){
-.sla-summary{grid-template-columns:1fr}
-header{flex-direction:column;gap:10px;align-items:flex-start}
+  .alert-row{grid-template-columns:1fr}
+  .sensor-grid{grid-template-columns:1fr}
+  .tab-btn{padding:12px 14px;font-size:.7rem}
 }
 </style>
 </head>
 <body>
 
 <header>
-<div>
-<h1>🛡️ ColoGuard – Fog-Based SLA Monitoring</h1>
-<div class="sub">Colocation Data Centre · Last updated: {{ now }}</div>
-</div>
-<span class="refresh-badge">⟳ auto-refresh 30s</span>
+  <div class="brand">
+    <div class="brand-icon">🛡️</div>
+    <div>
+      <h1>ColoGuard Command Center</h1>
+      <p>Fog-Based Colocation SLA Monitoring • Last updated: {{ now }}</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <div class="badge-top"><span class="live-dot"></span>LIVE</div>
+    <div class="badge-top">⟳ Auto Refresh 30s</div>
+  </div>
 </header>
+
+<!-- ── TAB BAR ── -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('overview', this)">
+    Overview
+    <span class="tab-count">5 categories</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('sensors', this)">
+    Live Sensors
+    <span class="tab-count" id="tab-count-sensors">{{ sla.total }}</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('incidents', this)">
+    Incidents
+    <span class="tab-count {% if alerts|length > 0 %}has-alerts{% endif %}" id="tab-count-incidents">{{ alerts|length }}</span>
+  </button>
+</div>
 
 <main>
 
-{% set score_class = 'green' if sla.score >= 75 else ('yellow' if sla.score >= 50 else 'red') %}
+{% set score_class = 'good' if sla.score >= 75 else ('warn' if sla.score >= 50 else 'crit') %}
 
-<div class="sla-summary">
-<div class="sla-card">
-<div class="label">Overall SLA Health</div>
-<div class="value {{ score_class }}">{{ sla.score }}</div>
-</div>
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 1: OVERVIEW                                                         -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-overview" class="tab-panel active">
+  <div class="command-grid">
 
-<div class="sla-card">
-<div class="label">SLA Met</div>
-<div class="value {{ score_class }}">{{ sla.healthy }} / {{ sla.total }}</div>
-</div>
+    <!-- LEFT SIDEBAR -->
+    <div class="sidebar">
+      <div class="side-title">Facility Zones</div>
+      <div class="zone-list">
+        {% for rack in ['A','B','C','D'] %}
+        {% set rack_sensors = latest | selectattr('rack', 'equalto', rack) | list %}
+        {% set rack_worst = 'green' %}
+        {% for s in rack_sensors %}
+          {% if s.status == 'CRITICAL' %}{% set rack_worst = 'red' %}{% endif %}
+          {% if s.status == 'WARNING' and rack_worst != 'red' %}{% set rack_worst = 'amber' %}{% endif %}
+        {% endfor %}
+        <div class="zone">
+          <span>Rack Row {{ rack }} ({{ rack_sensors|length }} sensors)</span>
+          <div class="dot {{ rack_worst }}"></div>
+        </div>
+        {% endfor %}
 
-<div class="sla-card">
-<div class="label">Compliance %</div>
-<div class="value {{ score_class }}">{{ sla.pct }}%</div>
-</div>
+        <div class="zone">
+          <span>Core Network</span>
+          {% set net = latest | selectattr('sensor_type', 'equalto', 'network') | list %}
+          {% set nc = 'green' %}
+          {% for s in net %}{% if s.status == 'CRITICAL' %}{% set nc = 'red' %}{% endif %}{% endfor %}
+          <div class="dot {{ nc }}"></div>
+        </div>
+      </div>
 
-<div class="sla-card">
-<div class="label">Active Alerts</div>
-<div class="value {{ 'red' if alerts|length > 0 else 'green' }}">{{ alerts|length }}</div>
-</div>
-</div>
-
-<div class="section-title">Live Sensor Readings</div>
-<div class="sensor-grid">
-
-{% if latest %}
-{% for s in latest %}
-{% set h = s.sla_health | float %}
-{% set bar_color = '#22c55e' if h >= 75 else ('#facc15' if h >= 50 else '#ef4444') %}
-{% set m = s.metrics | default({}) %}
-
-{% set label_map = {
-  'temperature_c': 'Temperature (°C)',
-  'humidity_pct':  'Humidity (%)',
-  'voltage_v':     'Voltage (V)',
-  'load_pct':      'Load (%)',
-  'latency_ms':    'Latency (ms)',
-  'packet_loss_pct': 'Packet Loss (%)',
-  'airflow_cfm':   'Airflow (CFM)',
-  'delta_t_c':     'Delta-T (°C)'
-} %}
-
-<div class="sensor-card">
-
-  <div class="sensor-header">
-    <span class="sensor-id">{{ s.sensor_id }}</span>
-    <span class="badge {{ s.status }}">{{ s.status }}</span>
-  </div>
-
-  <div class="sensor-name">{{ s.sensor_name | default('Sensor') }} · {{ s.location | default('Dublin') }}</div>
-
-  <div class="metrics">
-    {% for key, val in m.items() %}
-    <div class="metric">
-      <div class="m-label">{{ label_map.get(key, key) }}</div>
-      <div class="m-value">{{ val }}</div>
-    </div>
-    {% endfor %}
-
-    <div class="metric">
-      <div class="m-label">Last Updated</div>
-      <div class="m-value" style="font-size:.78rem;color:#8fb6d9">
-        {{ s.last_updated[11:16] if s.last_updated else 'N/A' }} UTC
+      <div class="mini-panel">
+        <div class="label">Overall SLA</div>
+        <div class="value {{ score_class }}">{{ sla.score }}</div>
+      </div>
+      <div class="mini-panel">
+        <div class="label">Compliance</div>
+        <div class="value {{ score_class }}">{{ sla.pct }}%</div>
+      </div>
+      <div class="mini-panel">
+        <div class="label">Active Alerts</div>
+        <div class="value {{ 'crit' if alerts|length > 0 else 'good' }}">{{ alerts|length }}</div>
+      </div>
+      <div class="mini-panel">
+        <div class="label">Total Sensors</div>
+        <div class="value good">{{ sla.total }}</div>
       </div>
     </div>
-  </div>
 
-  <div class="sla-row">
-    <div class="sla-track">
-      <div class="sla-fill" style="width:{{ h }}%;background:{{ bar_color }}"></div>
+    <!-- MAIN CONTENT -->
+    <div class="content">
+
+      <!-- KPI ROW -->
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="label">Sensors Healthy</div>
+          <div class="value good">{{ sla.healthy }}/{{ sla.total }}</div>
+        </div>
+        <div class="kpi">
+          <div class="label">SLA Met</div>
+          <div class="value {{ score_class }}">{{ sla.pct }}%</div>
+        </div>
+        <div class="kpi">
+          <div class="label">Active Incidents</div>
+          <div class="value {{ 'crit' if alerts|length > 0 else 'good' }}">{{ alerts|length }}</div>
+        </div>
+        <div class="kpi">
+          <div class="label">System Status</div>
+          <div class="value good">ONLINE</div>
+        </div>
+      </div>
+
+      <!-- CATEGORY OVERVIEW -->
+      <div>
+        <div class="section-title">Category Overview — Click to Drill Down by Rack &amp; Aisle</div>
+        <div class="category-grid">
+
+          {% set cat_icons = {
+            'temperature': '🌡️',
+            'humidity':    '💧',
+            'power':       '⚡',
+            'network':     '🌐',
+            'airflow':     '💨'
+          } %}
+
+          {% for stype, cat in categories.items() %}
+          {% set cat_pct = (cat.healthy / cat.total * 100) | round(0) if cat.total > 0 else 0 %}
+          {% set bar_col = '#22c55e' if cat_pct >= 75 else ('#facc15' if cat_pct >= 50 else '#ef4444') %}
+          <div class="cat-card {{ cat.worst_status }}"
+               onclick="openDrillDown('{{ stype }}', '{{ cat.label }}')"
+               title="Click to see rack/aisle breakdown">
+
+            <div class="cat-icon">{{ cat_icons.get(stype, '📡') }}</div>
+            <div class="cat-name">{{ cat.label }}</div>
+
+            <div class="cat-stats">
+              <div class="cat-stat"><strong>{{ cat.total }}</strong> sensors</div>
+              <div class="cat-stat"><strong>{{ cat.healthy }}</strong> healthy</div>
+              {% if cat.alerts|length > 0 %}
+              <div class="cat-stat crit"><strong>{{ cat.alerts|length }}</strong> alerts</div>
+              {% endif %}
+            </div>
+
+            <div class="cat-bar-track">
+              <div class="cat-bar-fill"
+                   style="width:{{ cat_pct }}%;background:{{ bar_col }}"></div>
+            </div>
+
+            <div class="cat-status-badge {{ cat.worst_status }}">{{ cat.worst_status }}</div>
+          </div>
+          {% endfor %}
+
+        </div>
+      </div>
+
+      <!-- TELEMETRY CHARTS -->
+      <div>
+        <div class="section-title">Telemetry Trends</div>
+        <div class="charts-grid" id="charts"></div>
+      </div>
+
     </div>
-    <span class="sla-label">SLA {{ h }}% {% if s.sla_met %}✓{% endif %}</span>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 2: LIVE SENSORS                                                     -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-sensors" class="tab-panel">
+
+  <div class="sensor-toolbar">
+    <input
+      id="sensorSearch"
+      class="sensor-search"
+      type="text"
+      placeholder="Search by sensor ID, rack, aisle, location…"
+      oninput="filterSensors()"
+    />
+    <button class="filter-pill fp-active" data-filter="all"   onclick="setFilter(this)">All ({{ sla.total }})</button>
+    <button class="filter-pill"           data-filter="CRITICAL" onclick="setFilter(this)">
+      Critical ({{ latest | selectattr('status','equalto','CRITICAL') | list | length }})
+    </button>
+    <button class="filter-pill"           data-filter="WARNING"  onclick="setFilter(this)">
+      Warning ({{ latest | selectattr('status','equalto','WARNING') | list | length }})
+    </button>
+    <button class="filter-pill"           data-filter="OK"       onclick="setFilter(this)">
+      OK ({{ latest | selectattr('status','equalto','OK') | list | length }})
+    </button>
+    <span class="sensor-count-label" id="sensorCountLabel">Showing {{ sla.total }} sensors</span>
   </div>
 
+  <div class="sensor-grid" id="sensorGrid">
+
+    {% set label_map = {
+      'temperature_c':'Temperature (°C)',
+      'humidity_pct':'Humidity (%)',
+      'voltage_v':'Voltage (V)',
+      'load_pct':'Load (%)',
+      'latency_ms':'Latency (ms)',
+      'packet_loss_pct':'Packet Loss (%)',
+      'airflow_cfm':'Airflow (CFM)',
+      'delta_t_c':'Delta-T (°C)'
+    } %}
+    {% set target_map = {
+      'temperature_c':30,
+      'humidity_pct':65,
+      'voltage_v':210,
+      'load_pct':75,
+      'latency_ms':150,
+      'packet_loss_pct':1,
+      'airflow_cfm':400,
+      'delta_t_c':15
+    } %}
+    {% set reverse = ['voltage_v','airflow_cfm'] %}
+
+    {% if latest %}
+      {% for s in latest %}
+      {% set h = s.sla_health | float %}
+      {% set bar_color = '#22c55e' if h >= 75 else ('#facc15' if h >= 50 else '#ef4444') %}
+      {% set m = s.metrics | default({}) %}
+
+      <div class="sensor-card"
+           data-status="{{ s.status }}"
+           data-id="{{ s.sensor_id }}"
+           data-rack="{{ s.rack | default('') }}"
+           data-aisle="{{ s.aisle | default('') }}"
+           data-location="{{ s.location | default('') }}">
+
+        <div class="sensor-header">
+          <div>
+            <div class="sensor-id">{{ s.sensor_id }}</div>
+            <div style="font-size:.7rem;color:var(--cyan);margin-top:2px">
+              Rack {{ s.rack | default('?') }} · Aisle {{ s.aisle | default('?') }}
+            </div>
+          </div>
+          <div class="badge {{ s.status }}">{{ s.status }}</div>
+        </div>
+
+        <div class="sensor-name">
+          {{ s.sensor_name | default('Sensor') }} • {{ s.location | default('Dublin') }}
+        </div>
+
+        <div class="metrics">
+          {% for key,val in m.items() %}
+          {% set target = target_map.get(key,100) %}
+          {% set num = val | float %}
+          {% if key in reverse %}
+            {% set percent = (num / target * 100) if target > 0 else 100 %}
+          {% else %}
+            {% set percent = (target / num * 100) if num > 0 else 100 %}
+          {% endif %}
+          {% if percent > 100 %}{% set percent = 100 %}{% endif %}
+          {% if percent < 0   %}{% set percent = 0   %}{% endif %}
+          {% set cls  = 'good' if percent >= 75 else ('warn' if percent >= 50 else 'crit') %}
+          {% set fill = '#22c55e' if percent >= 75 else ('#facc15' if percent >= 50 else '#ef4444') %}
+
+          <div class="metric">
+            <div class="m-label">{{ label_map.get(key,key) }}</div>
+            <div class="m-value {{ cls }}">{{ val }}</div>
+            <div class="metric-target">
+              Target: {% if key in reverse %}≥ {{ target }}{% else %}≤ {{ target }}{% endif %}
+            </div>
+            <div class="metric-track">
+              <div class="metric-fill" style="width:{{ percent }}%;background:{{ fill }}"></div>
+            </div>
+          </div>
+          {% endfor %}
+
+          <div class="metric">
+            <div class="m-label">Last Updated</div>
+            <div class="m-value">{{ s.last_updated[11:16] if s.last_updated else 'N/A' }} UTC</div>
+          </div>
+        </div>
+
+        <div class="sla-row">
+          <div class="sla-track">
+            <div class="sla-fill" style="width:{{ h }}%;background:{{ bar_color }}"></div>
+          </div>
+          <div class="sla-label">SLA {{ h }}%</div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">No sensor data available.</div>
+    {% endif %}
+
+  </div>
 </div>
-{% endfor %}
-{% else %}
-<p class="empty">No sensor data available.</p>
-{% endif %}
 
-</div>
-
-<div class="section-title">Sensor History</div>
-<div class="charts-grid" id="charts"></div>
-
-<div class="section-title">Active Alerts</div>
-<div class="alert-list">
-
-{% if alerts %}
-{% for a in alerts %}
-<div class="alert-row {{ a.level }}">
-<span class="badge {{ a.level }}">{{ a.level }}</span>
-<span class="a-sensor">{{ a.sensor_id }}</span>
-<span class="a-metric">{{ a.metric }}</span>
-<span class="a-val">{{ a.value }}</span>
-<span class="a-time">{{ a.timestamp }}</span>
-</div>
-{% endfor %}
-{% else %}
-<p class="empty">✅ No active alerts</p>
-{% endif %}
-
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- TAB 3: INCIDENTS                                                        -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div id="tab-incidents" class="tab-panel">
+  <div class="alert-list">
+    {% if alerts %}
+      <div class="alert-row" style="background:transparent;border:none;color:var(--muted);font-size:.7rem;font-weight:700;text-transform:uppercase">
+        <div>Level</div>
+        <div>Sensor ID</div>
+        <div>Rack · Aisle</div>
+        <div>Metric</div>
+        <div>Value</div>
+        <div>Time</div>
+      </div>
+      {% for a in alerts %}
+      <div class="alert-row {{ a.level }}">
+        <div><div class="badge {{ a.level }}">{{ a.level }}</div></div>
+        <div style="font-size:.78rem">{{ a.sensor_id }}</div>
+        <div class="alert-rack">R{{ a.rack }} · A{{ a.aisle }}</div>
+        <div style="font-size:.78rem">{{ a.metric }}</div>
+        <div style="font-size:.78rem">{{ a.value }}</div>
+        <div style="font-size:.72rem;color:var(--muted)">{{ a.timestamp[11:19] if a.timestamp else '' }} UTC</div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">✅ No active alerts</div>
+    {% endif %}
+  </div>
 </div>
 
 </main>
 
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- DRILL-DOWN MODAL                                                        -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="drillModal" onclick="closeIfOverlay(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Category Drill-Down</div>
+        <div class="modal-sub" id="modalSub">Loading…</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕ Close</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div style="text-align:center;padding:40px;color:var(--muted)">Loading sensor data…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════════════════ -->
+<!-- SCRIPTS                                                                 -->
+<!-- ════════════════════════════════════════════════════════════════════════ -->
 <script>
-const chartData={{ chart_data | safe }};
-const container=document.getElementById("charts");
 
-Object.entries(chartData).forEach(([name,data])=>{
-const card=document.createElement("div");
-card.className="chart-card";
-
-const title=document.createElement("h3");
-title.textContent=name;
-
-const canvas=document.createElement("canvas");
-
-card.appendChild(title);
-card.appendChild(canvas);
-container.appendChild(card);
-
-new Chart(canvas,{
-type:"line",
-data:{
-labels:data.labels||[],
-datasets:[{
-label:name,
-data:data.values||[],
-borderColor:"#38bdf8",
-backgroundColor:"rgba(56,189,248,.15)",
-borderWidth:2,
-pointRadius:3,
-tension:.35,
-fill:true
-}]
-},
-options:{
-responsive:true,
-plugins:{
-legend:{labels:{color:"#8fb6d9"}}
-},
-scales:{
-x:{ticks:{color:"#6fa3c9"},grid:{color:"#163a5c"}},
-y:{ticks:{color:"#6fa3c9"},grid:{color:"#163a5c"}}
+/* ── Tab switching ──────────────────────────────────────────────────────── */
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
 }
+
+/* ── Sensor filtering & search ──────────────────────────────────────────── */
+let activeFilter = 'all';
+
+function setFilter(btn) {
+  activeFilter = btn.dataset.filter;
+  document.querySelectorAll('.filter-pill').forEach(b => {
+    b.classList.remove('fp-active', 'fp-critical', 'fp-warning');
+  });
+  btn.classList.add('fp-active');
+  if (activeFilter === 'CRITICAL') btn.classList.add('fp-critical');
+  if (activeFilter === 'WARNING')  btn.classList.add('fp-warning');
+  filterSensors();
 }
+
+function filterSensors() {
+  const query  = document.getElementById('sensorSearch').value.toLowerCase();
+  const cards  = document.querySelectorAll('#sensorGrid .sensor-card');
+  let visible  = 0;
+
+  cards.forEach(card => {
+    const matchStatus = activeFilter === 'all' || card.dataset.status === activeFilter;
+    const searchText  = [
+      card.dataset.id,
+      card.dataset.rack,
+      card.dataset.aisle,
+      card.dataset.location,
+    ].join(' ').toLowerCase();
+    const matchSearch = !query || searchText.includes(query);
+
+    if (matchStatus && matchSearch) {
+      card.style.display = '';
+      visible++;
+    } else {
+      card.style.display = 'none';
+    }
+  });
+
+  const lbl = document.getElementById('sensorCountLabel');
+  if (lbl) lbl.textContent = 'Showing ' + visible + ' sensor' + (visible !== 1 ? 's' : '');
+}
+
+/* ── Telemetry Charts ───────────────────────────────────────────────────── */
+const chartData = {{ chart_data | safe }};
+const container = document.getElementById("charts");
+
+const typeGroups = {};
+Object.entries(chartData).forEach(([sid, data]) => {
+  const prefix = sid.split('-')[0];
+  if (!typeGroups[prefix]) typeGroups[prefix] = [];
+  typeGroups[prefix].push({ sid, data });
 });
+
+const TYPE_LABEL = {
+  temp:     'Temperature (°C)',
+  humidity: 'Humidity (%)',
+  power:    'Load (%)',
+  network:  'Latency (ms)',
+  airflow:  'Airflow (CFM)',
+};
+const COLORS = ['#38bdf8','#22c55e','#facc15','#ef4444','#a78bfa','#fb923c'];
+
+Object.entries(typeGroups).forEach(([prefix, sensors]) => {
+  const card   = document.createElement('div');
+  card.className = 'chart-card';
+  const title  = document.createElement('h3');
+  title.textContent = TYPE_LABEL[prefix] || prefix;
+  const canvas = document.createElement('canvas');
+  card.appendChild(title);
+  card.appendChild(canvas);
+  container.appendChild(card);
+
+  const labels = sensors[0]?.data?.labels || [];
+
+  new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: sensors.map(({ sid, data }, i) => ({
+        label:           sid,
+        data:            data.values || [],
+        borderColor:     COLORS[i % COLORS.length],
+        backgroundColor: COLORS[i % COLORS.length] + '22',
+        borderWidth:     1.5,
+        pointRadius:     1.5,
+        tension:         .35,
+        fill:            false,
+      })),
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { labels: { color: '#8eb3d1', font: { size: 10 } } } },
+      scales: {
+        x: { ticks: { color: '#79a8cc', font: { size: 9 } }, grid: { color: '#173450' } },
+        y: { ticks: { color: '#79a8cc' }, grid: { color: '#173450' } },
+      },
+    },
+  });
 });
+
+/* ── Drill-Down Modal ───────────────────────────────────────────────────── */
+function openDrillDown(sensorType, label) {
+  document.getElementById('drillModal').classList.add('open');
+  document.getElementById('modalTitle').textContent = label + ' — Rack & Aisle Breakdown';
+  document.getElementById('modalSub').textContent = 'Fetching live data…';
+  document.getElementById('modalBody').innerHTML =
+    '<div style="text-align:center;padding:40px;color:var(--muted)">Loading…</div>';
+
+  fetch('/api/category/' + sensorType)
+    .then(r => r.json())
+    .then(d => renderModal(d, label))
+    .catch(e => {
+      document.getElementById('modalBody').innerHTML =
+        '<div class="empty">⚠️ Failed to load data: ' + e.message + '</div>';
+    });
+}
+
+function closeModal() {
+  document.getElementById('drillModal').classList.remove('open');
+}
+
+function closeIfOverlay(e) {
+  if (e.target === document.getElementById('drillModal')) closeModal();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function renderModal(data, label) {
+  const racks   = data.racks   || [];
+  const aisles  = data.aisles  || [];
+  const grid    = data.grid    || {};
+  const sensors = data.sensors || [];
+
+  const total   = sensors.length;
+  const healthy = sensors.filter(s => s.sla_met).length;
+  const crit    = sensors.filter(s => s.status === 'CRITICAL').length;
+  const warn    = sensors.filter(s => s.status === 'WARNING').length;
+  const avgSla  = total
+    ? Math.round(sensors.reduce((a,s) => a + (s.sla_health || 0), 0) / total)
+    : 0;
+
+  const summaryHtml = `
+    <div class="modal-summary">
+      <div class="modal-kpi">
+        <div class="mk-label">Total</div>
+        <div class="mk-value good">${total}</div>
+      </div>
+      <div class="modal-kpi">
+        <div class="mk-label">Healthy</div>
+        <div class="mk-value good">${healthy}</div>
+      </div>
+      <div class="modal-kpi">
+        <div class="mk-label">Warning</div>
+        <div class="mk-value warn">${warn}</div>
+      </div>
+      <div class="modal-kpi">
+        <div class="mk-label">Critical</div>
+        <div class="mk-value crit">${crit}</div>
+      </div>
+      <div class="modal-kpi">
+        <div class="mk-label">Avg SLA</div>
+        <div class="mk-value" style="color:${avgSla>=75?'var(--green)':avgSla>=50?'var(--amber)':'var(--red)'}">${avgSla}%</div>
+      </div>
+    </div>`;
+
+  let tableHtml = `
+    <div class="heatmap-section">
+      <div class="heatmap-title">📍 Rack × Aisle Heatmap</div>
+      <div class="heatmap-legend">
+        <span><span class="legend-dot" style="background:#1a5c30"></span>OK</span>
+        <span><span class="legend-dot" style="background:#7a5010"></span>Warning</span>
+        <span><span class="legend-dot" style="background:#8a1010"></span>Critical</span>
+        <span style="margin-left:8px;font-style:italic">Click a cell to jump to sensor detail ↓</span>
+      </div>
+      <div class="heatmap-wrap">
+      <table class="heatmap-table">
+        <thead>
+          <tr>
+            <th></th>
+            ${aisles.map(a => `<th>Aisle ${a}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>`;
+
+  racks.forEach(rack => {
+    tableHtml += `<tr><th style="text-align:left;padding-right:8px">Rack ${rack}</th>`;
+    aisles.forEach(aisle => {
+      const key  = `('${rack}', '${aisle}')`;
+      const cell = grid[key];
+      if (cell) {
+        const h   = Math.round(cell.sla_health || 0);
+        const col = h >= 75 ? 'var(--green)' : h >= 50 ? 'var(--amber)' : 'var(--red)';
+        tableHtml += `
+          <td class="hm-cell ${cell.status}"
+              onclick="scrollToSensor('${cell.sensor_id}')"
+              title="${cell.sensor_name}">
+            <div class="hm-pulse ${cell.status}"></div>
+            <div class="hm-sensor-id">${cell.sensor_id}</div>
+            <div class="hm-status ${cell.status}">${cell.status}</div>
+            <div class="hm-health" style="color:${col}">${h}%</div>
+          </td>`;
+      } else {
+        tableHtml += `<td class="hm-cell empty-cell"><div style="font-size:.65rem;color:#3a5a7a;text-align:center;padding-top:20px">—</div></td>`;
+      }
+    });
+    tableHtml += '</tr>';
+  });
+
+  tableHtml += `</tbody></table></div></div>`;
+
+  let detailHtml = `
+    <div class="section-title" style="margin-bottom:12px">Sensor Details</div>
+    <div class="modal-sensor-list">`;
+
+  sensors.forEach(s => {
+    const metrics = s.metrics || {};
+    const alerts  = s.alerts  || [];
+    const h       = Math.round(s.sla_health || 0);
+    const hColor  = h >= 75 ? 'var(--green)' : h >= 50 ? 'var(--amber)' : 'var(--red)';
+
+    const metricHtml = Object.entries(metrics).map(([k, v]) =>
+      `<div class="msr-metric"><strong>${v}</strong> ${k.replace(/_/g,' ')}</div>`
+    ).join('');
+
+    const alertHtml = alerts.map(a =>
+      `<div class="msr-alert ${a.level}">⚠ ${a.metric} = ${a.value} [${a.level}]</div>`
+    ).join('');
+
+    detailHtml += `
+      <div class="modal-sensor-row ${s.status}" id="detail-${s.sensor_id}">
+        <div class="msr-top">
+          <div class="msr-id">${s.sensor_id}</div>
+          <div class="badge ${s.status}">${s.status}</div>
+        </div>
+        <div class="msr-loc">📍 Rack ${s.rack||'?'} · Aisle ${s.aisle||'?'} · ${s.location||''}</div>
+        <div class="msr-metrics">${metricHtml}</div>
+        <div style="font-size:.68rem;color:${hColor};font-weight:700;margin-top:8px">SLA ${h}%</div>
+        ${alertHtml ? '<div class="msr-alerts">'+alertHtml+'</div>' : ''}
+      </div>`;
+  });
+
+  detailHtml += '</div>';
+
+  document.getElementById('modalSub').textContent =
+    `${total} sensors · ${crit} critical · ${warn} warning`;
+  document.getElementById('modalBody').innerHTML =
+    summaryHtml + tableHtml + detailHtml;
+}
+
+function scrollToSensor(sensorId) {
+  const el = document.getElementById('detail-' + sensorId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.style.outline = '2px solid var(--cyan)';
+    setTimeout(() => el.style.outline = '', 2000);
+  }
+}
 </script>
 
 </body>
